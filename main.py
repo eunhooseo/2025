@@ -1,61 +1,47 @@
 import streamlit as st
+import pandas as pd
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
-st.set_page_config(page_title="MBTI 커뮤니티", layout="wide")
+st.set_page_config(page_title="MBTI 분위기 추천", layout="wide")
 
-css = """
-/* Google Fonts : Noto Sans KR (대체) */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+# 모의 장소 데이터(간단)
+places = pd.DataFrame([
+    {"id":1, "name":"달빛카페", "lat":37.5, "lon":127.0, "reviews":["조용하고 조명이 부드러워서 독서하기 좋아요","작은 창가 자리 추천"]},
+    {"id":2, "name":"햇살 브런치", "lat":37.51, "lon":127.01, "reviews":["음악이 활기차고 인테리어가 화사함","테라스 자리 느낌 좋아요"]},
+    {"id":3, "name":"미니멀 테이블", "lat":37.49, "lon":127.02, "reviews":["깔끔하고 조용한 분위기","직장인 점심에 적당"]},
+])
 
-html, body, [data-testid="stAppViewContainer"] {
-  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
-  background: linear-gradient(135deg, #FFF6F4 0%, #FFF0EB 100%);
+mbti_presets = {
+    "INFP": "아늑한 조명 창가 감성 차분한 음악",
+    "ENFP": "활기찬 음악 밝은 인테리어 테라스",
+    "INTJ": "미니멀 깔끔 집중하기 좋은 조용함",
 }
 
-/* 헤더 스타일 */
-.header {
-  background: linear-gradient(135deg, #FF4D00, #FF8A3D);
-  color: white;
-  padding: 24px;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(255,77,0,0.15);
-}
+def text_to_vec(texts, vocab=None):
+    vec = CountVectorizer(vocabulary=vocab).fit_transform(texts)
+    return vec.toarray(), CountVectorizer(vocabulary=vocab).vocabulary_
 
-/* CTA 버튼 */
-.css-cta-button {
-  background: linear-gradient(90deg,#FF4D00,#FF8A3D);
-  color: #fff !important;
-  font-weight: 700;
-  border-radius: 12px;
-  padding: 10px 18px;
-  box-shadow: 0 6px 16px rgba(255,77,0,0.18);
-}
+# 사전(간단한 분위기 키워드)
+vocab = ["조용","조명","창가","아늑","활기","테라스","밝","깔끔","집중","음악"]
 
-/* 채팅 버블(내 메시지 / 상대 메시지) */
-.chat-bubble {
-  border-radius: 14px;
-  padding: 10px 12px;
-  margin: 6px 0;
-  display: inline-block;
-}
-.chat-me { background: #FF8A3D; color: white; font-weight: 600; }
-.chat-other { background: #FFF; color: #212121; border: 1px solid #FFE7D9; }
+# 장소 분위기 벡터
+place_texts = [" ".join(r) for r in places["reviews"]]
+place_vecs, _ = text_to_vec(place_texts, vocab=vocab)
 
-/* MBTI 뱃지 */
-.mbti-badge {
-  background: linear-gradient(90deg,#FF4D00,#FFC857);
-  color: white;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-"""
-st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+st.sidebar.title("설정")
+user_mbti = st.sidebar.selectbox("내 MBTI", list(mbti_presets.keys()))
+radius_km = st.sidebar.slider("반경(km)", 1, 20, 5)
 
-# 예시 UI
-st.markdown('<div class="header"><h1>같은 MBTI 사람 찾기</h1></div>', unsafe_allow_html=True)
-col1, col2 = st.columns([2,3])
-with col1:
-    st.markdown('<button class="css-cta-button">근처 찾기</button>', unsafe_allow_html=True)
-with col2:
-    st.markdown('<div class="mbti-badge">ENFP</div>', unsafe_allow_html=True)
+# MBTI 프리셋 -> 벡터
+mbti_vec, _ = text_to_vec([mbti_presets[user_mbti]], vocab=vocab)
+
+sims = cosine_similarity(mbti_vec, place_vecs)[0]
+places["score"] = sims
+places = places.sort_values("score", ascending=False)
+
+st.markdown(f"### 추천 결과 — {user_mbti}님에게 어울리는 분위기")
+for _, row in places.iterrows():
+    st.markdown(f"**{row['name']}** — 매칭 점수: {row['score']:.2f}")
+    st.info(", ".join(row["reviews"]))
