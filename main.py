@@ -1,10 +1,3 @@
-[theme]
-primaryColor = "#FF4D00"
-backgroundColor = "#FFF6F4"
-secondaryBackgroundColor = "#FFF0EB"
-textColor = "#212121"
-# font는 "sans serif", "serif", "monospace" 중 선택 가능 (정교한 폰트는 CSS로 주입)
-font = "sans serif"
 import streamlit as st
 
 st.set_page_config(page_title="MBTI 커뮤니티", layout="wide")
