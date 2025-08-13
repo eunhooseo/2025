@@ -1,3 +1,10 @@
+streamlit==1.38.0
+pandas==2.2.2
+numpy==1.26.4
+matplotlib==3.9.2
+plotly==5.24.0
+scikit-learn==1.5.1
+
 import streamlit as st
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
