@@ -1,54 +1,83 @@
-streamlit==1.38.0
-pandas==2.2.2
-numpy==1.26.4
-matplotlib==3.9.2
-plotly==5.24.0
-scikit-learn==1.5.1
-
+# app.py
 import streamlit as st
-import pandas as pd
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 
-st.set_page_config(page_title="MBTI 분위기 추천", layout="wide")
+st.set_page_config(page_title="MBTI 음악 추천", layout="wide")
 
-# 모의 장소 데이터(간단)
-places = pd.DataFrame([
-    {"id":1, "name":"달빛카페", "lat":37.5, "lon":127.0, "reviews":["조용하고 조명이 부드러워서 독서하기 좋아요","작은 창가 자리 추천"]},
-    {"id":2, "name":"햇살 브런치", "lat":37.51, "lon":127.01, "reviews":["음악이 활기차고 인테리어가 화사함","테라스 자리 느낌 좋아요"]},
-    {"id":3, "name":"미니멀 테이블", "lat":37.49, "lon":127.02, "reviews":["깔끔하고 조용한 분위기","직장인 점심에 적당"]},
-])
-
-mbti_presets = {
-    "INFP": "아늑한 조명 창가 감성 차분한 음악",
-    "ENFP": "활기찬 음악 밝은 인테리어 테라스",
-    "INTJ": "미니멀 깔끔 집중하기 좋은 조용함",
+# --- CSS: 초록 테마 + 애플 시스템 글꼴 느낌 ---
+css = """
+/* 시스템 폰트 스택(맥에서는 애플 글꼴 사용) */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+html, body, [data-testid="stAppViewContainer"] {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  background-color: #E9F9EF;
+  color: #1F2D2D;
 }
+.header {
+  background: linear-gradient(90deg, #2ECC71, #1ABC60);
+  color: white;
+  padding: 22px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(27, 188, 155, 0.12);
+}
+.playlist-card {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 6px 18px rgba(31,45,45,0.06);
+  margin-bottom: 12px;
+}
+.btn {
+  background: linear-gradient(90deg,#1ABC60,#2ECC71);
+  color: #fff !important;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.small-muted { color: #6B8E6B; font-size:0.9rem; }
+"""
 
-def text_to_vec(texts, vocab=None):
-    vec = CountVectorizer(vocabulary=vocab).fit_transform(texts)
-    return vec.toarray(), CountVectorizer(vocabulary=vocab).vocabulary_
+st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
-# 사전(간단한 분위기 키워드)
-vocab = ["조용","조명","창가","아늑","활기","테라스","밝","깔끔","집중","음악"]
-
-# 장소 분위기 벡터
-place_texts = [" ".join(r) for r in places["reviews"]]
-place_vecs, _ = text_to_vec(place_texts, vocab=vocab)
+# --- 헤더 ---
+st.markdown('<div class="header"><h1 style="margin:0">MBTI 음악 추천</h1><div class="small-muted">초록 테마 · 애플 시스템 글꼴 느낌</div></div>', unsafe_allow_html=True)
 
 st.sidebar.title("설정")
-user_mbti = st.sidebar.selectbox("내 MBTI", list(mbti_presets.keys()))
-radius_km = st.sidebar.slider("반경(km)", 1, 20, 5)
+mbti = st.sidebar.selectbox("내 MBTI 선택", ["INFP","ENFP","INTP","ENTP","ISFP","ESFP","ISTJ","ISFJ","INTJ","INFJ","ESTJ","ESFJ","ENTJ","ENFJ","ISTP","ESTP"])
+mood = st.sidebar.selectbox("무드 필터", ["전체","차분한", "잔잔한", "업템포", "신나는"])
 
-# MBTI 프리셋 -> 벡터
-mbti_vec, _ = text_to_vec([mbti_presets[user_mbti]], vocab=vocab)
+# --- MBTI 프리셋 플레이리스트(예시) ---
+# 실제 서비스는 Spotify API로 플레이리스트 ID를 불러와서 연결하면 됨.
+playlists = {
+    "INFP": [
+        {"title":"INFP - Dreamy Indie", "reason":"잔잔한 감성/포근한 보컬 중심", "embed":"https://open.spotify.com/embed/playlist/37i9dQZF1DX2sUQwD7tbmL"},
+        {"title":"INFP - Acoustic Evenings", "reason":"어쿠스틱/조용한 밤에 좋음", "embed":"https://open.spotify.com/embed/playlist/37i9dQZF1DWYF8xQ8v2FN2"}
+    ],
+    "ENFP": [
+        {"title":"ENFP - Bright Indie Pop", "reason":"활기차고 밝은 멜로디", "embed":"https://open.spotify.com/embed/playlist/37i9dQZF1DX5Ozry5U6G0H"},
+        {"title":"ENFP - Upbeat Mix", "reason":"에너제틱한 리듬", "embed":"https://open.spotify.com/embed/playlist/37i9dQZF1DWT6MhXz0jw61"}
+    ],
+    # ... 나머지 MBTI도 같은 형식으로 추가 가능
+}
 
-sims = cosine_similarity(mbti_vec, place_vecs)[0]
-places["score"] = sims
-places = places.sort_values("score", ascending=False)
+st.markdown(f"## {mbti}님을 위한 추천 플레이리스트")
+cols = st.columns([1,1,1])
 
-st.markdown(f"### 추천 결과 — {user_mbti}님에게 어울리는 분위기")
-for _, row in places.iterrows():
-    st.markdown(f"**{row['name']}** — 매칭 점수: {row['score']:.2f}")
-    st.info(", ".join(row["reviews"]))
+items = playlists.get(mbti, [])
+if not items:
+    st.info("아직 해당 MBTI의 플레이리스트가 등록되지 않았어요. 기본 추천을 보여줄게요.")
+    # 기본 추천 샘플
+    items = [
+        {"title":"Chill Vibes", "reason":"편안한 분위기", "embed":"https://open.spotify.com/embed/playlist/37i9dQZF1DX4WYpdgoIcn6"}
+    ]
+
+for i, pl in enumerate(items):
+    with cols[i % 3]:
+        st.markdown(f'<div class="playlist-card"><h3 style="margin:6px 0">{pl["title"]}</h3><div class="small-muted">{pl["reason"]}</div></div>', unsafe_allow_html=True)
+        # Spotify 임베드
+        st.markdown(f'<iframe src="{pl["embed"]}" width="100%" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>', unsafe_allow_html=True)
+
+st.markdown("---")
+st.markdown("앱 데모는 간단한 프리셋 기반이야. 실제로는 Spotify API로 플레이리스트/트랙 정보를 가져오고, 사용자 청취 기록을 반영하면 개인화된 추천 가능!")
+
+# 하단: 다음 단계 안내
+st.info("다음으로 원하면 Spotify API 연동, 사용자별 추천(협업필터링/임베딩) 또는 플레이리스트 직접 업로드 기능을 만들어줄게. 어떤걸 먼저 할래?")
