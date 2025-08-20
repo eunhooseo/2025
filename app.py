@@ -16,8 +16,8 @@ import altair as alt
 APP_TITLE = "갓생 다마고치 (Study & Habit RPG)"
 DATA_FILE = Path("user_data.json")
 
-XP_PER_MINUTE = 0.5
-LEVEL_XP = 100
+XP_PER_MINUTE = 0.2
+LEVEL_XP = 200
 
 DEFAULT_HABITS = [
     {"name": "수학 문제 20분", "xp": 10},
