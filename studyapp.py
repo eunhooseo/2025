@@ -3,52 +3,8 @@ import pandas as pd
 import plotly.express as px
 import datetime
 import random
-import sqlite3
 
 st.set_page_config(page_title="Study Manager", layout="wide")
-
-# -----------------------------
-# 데이터베이스 연결 (SQLite)
-# -----------------------------
-
-conn = sqlite3.connect("study.db", check_same_thread=False)
-cursor = conn.cursor()
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS todos(
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-task TEXT,
-done INTEGER
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS memos(
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-title TEXT,
-content TEXT,
-date TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS books(
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-title TEXT,
-subject TEXT,
-thought TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS studytime(
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-date TEXT,
-hours INTEGER
-)
-""")
-
-conn.commit()
 
 # -----------------------------
 # 테마 설정
@@ -76,7 +32,6 @@ st.markdown(
 # -----------------------------
 
 characters = ["🐰 Rabbit","🐱 Cat","🐻 Bear"]
-
 character = st.sidebar.selectbox("캐릭터 선택", characters)
 
 good_messages = [
@@ -92,89 +47,102 @@ bad_messages = [
 ]
 
 # -----------------------------
-# 메뉴
+# 세션 상태
 # -----------------------------
 
-menu = st.sidebar.radio(
-    "메뉴",
-    ["홈","ToDo","메모","일정","생기부 독서","공부 통계"]
-)
+if "todos" not in st.session_state:
+    st.session_state.todos = []
+
+if "memos" not in st.session_state:
+    st.session_state.memos = []
+
+if "calendar" not in st.session_state:
+    st.session_state.calendar = []
+
+if "books" not in st.session_state:
+    st.session_state.books = []
+
+if "study" not in st.session_state:
+    st.session_state.study = []
+
+if "page" not in st.session_state:
+    st.session_state.page = "홈"
 
 # -----------------------------
 # 홈 화면
 # -----------------------------
 
-if menu == "홈":
+if st.session_state.page == "홈":
 
-    st.title("📚 Study Manager")
-
-    st.subheader("🎯 D-Day 설정")
+    today = datetime.datetime.now().date()
 
     target_date = st.date_input("목표 날짜")
 
-    today = datetime.date.today()
-
     if target_date:
-
         dday = (target_date - today).days
+        st.caption(f"🎯 D-Day : {dday}")
 
-        if dday > 0:
-            st.metric("D-Day",f"D-{dday}")
-        elif dday == 0:
-            st.success("🎉 오늘이 목표일!")
-        else:
-            st.write(f"D+{abs(dday)}")
+    st.markdown("##")
+    st.markdown(f"# {character}")
 
-    st.subheader("⭐ 캐릭터")
+    message = random.choice(good_messages)
 
-    st.write(character)
+    st.chat_message("assistant").write(message)
 
-    cursor.execute("SELECT COUNT(*) FROM studytime")
-    count = cursor.fetchone()[0]
+    st.markdown("---")
 
-    if count > 0:
-        st.success(random.choice(good_messages))
-    else:
-        st.warning(random.choice(bad_messages))
+    col1,col2,col3,col4,col5 = st.columns(5)
+
+    with col1:
+        if st.button("✔️ ToDo"):
+            st.session_state.page="ToDo"
+
+    with col2:
+        if st.button("📝 메모"):
+            st.session_state.page="메모"
+
+    with col3:
+        if st.button("📅 일정"):
+            st.session_state.page="일정"
+
+    with col4:
+        if st.button("📚 독서"):
+            st.session_state.page="생기부 독서"
+
+    with col5:
+        if st.button("📊 통계"):
+            st.session_state.page="공부 통계"
 
 # -----------------------------
 # ToDo
 # -----------------------------
 
-elif menu == "ToDo":
+elif st.session_state.page == "ToDo":
 
     st.title("✔️ ToDo List")
 
     task = st.text_input("할 일 입력")
 
     if st.button("추가"):
+        st.session_state.todos.append({
+            "task":task,
+            "done":False
+        })
 
-        cursor.execute(
-        "INSERT INTO todos(task,done) VALUES(?,?)",
-        (task,0)
-        )
+    for i,todo in enumerate(st.session_state.todos):
 
-        conn.commit()
+        done = st.checkbox(todo["task"],value=todo["done"],key=i)
 
-    cursor.execute("SELECT * FROM todos")
-    rows = cursor.fetchall()
+        st.session_state.todos[i]["done"] = done
 
-    for row in rows:
-
-        done = st.checkbox(row[1],value=row[2])
-
-        cursor.execute(
-        "UPDATE todos SET done=? WHERE id=?",
-        (int(done),row[0])
-        )
-
-    conn.commit()
+    if st.button("홈으로"):
+        st.session_state.page="홈"
 
 # -----------------------------
 # 메모
 # -----------------------------
 
-elif menu == "메모":
+elif st.session_state.page == "메모":
 
     st.title("📝 메모")
 
@@ -183,47 +151,64 @@ elif menu == "메모":
 
     if st.button("저장"):
 
-        cursor.execute(
-        "INSERT INTO memos(title,content,date) VALUES(?,?,?)",
-        (title,content,str(datetime.date.today()))
-        )
+        st.session_state.memos.append({
+            "title":title,
+            "content":content,
+            "date":str(datetime.date.today())
+        })
 
-        conn.commit()
+    for memo in st.session_state.memos[::-1]:
 
-    cursor.execute("SELECT * FROM memos ORDER BY id DESC")
-    rows = cursor.fetchall()
+        col1,col2 = st.columns([4,1])
 
-    for memo in rows:
+        with col1:
+            st.subheader(memo["title"])
 
-        st.subheader(memo[1])
-        st.write(memo[2])
-        st.caption(memo[3])
+        with col2:
+            st.caption(memo["date"])
+
+        st.write(memo["content"])
+
+    if st.button("홈으로"):
+        st.session_state.page="홈"
 
 # -----------------------------
-# 일정
+# 일정 (달력)
 # -----------------------------
 
-elif menu == "일정":
+elif st.session_state.page == "일정":
 
-    st.title("📅 일정")
+    st.title("📅 일정 관리")
 
     date = st.date_input("날짜")
     schedule = st.text_input("일정")
 
     if st.button("일정 추가"):
 
-        cursor.execute(
-        "INSERT INTO memos(title,content,date) VALUES(?,?,?)",
-        ("일정",schedule,str(date))
-        )
+        st.session_state.calendar.append({
+            "date":date,
+            "schedule":schedule
+        })
 
-        conn.commit()
+    df = pd.DataFrame(st.session_state.calendar)
+
+    if not df.empty:
+
+        st.subheader("이번 달 일정")
+
+        calendar_df = df.copy()
+        calendar_df["date"] = pd.to_datetime(calendar_df["date"])
+
+        st.dataframe(calendar_df)
+
+    if st.button("홈으로"):
+        st.session_state.page="홈"
 
 # -----------------------------
 # 생기부 독서
 # -----------------------------
 
-elif menu == "생기부 독서":
+elif st.session_state.page == "생기부 독서":
 
     st.title("📚 생기부 독서 기록")
 
@@ -233,27 +218,34 @@ elif menu == "생기부 독서":
 
     if st.button("기록"):
 
-        cursor.execute(
-        "INSERT INTO books(title,subject,thought) VALUES(?,?,?)",
-        (book,subject,thought)
-        )
+        st.session_state.books.append({
+            "title":book,
+            "subject":subject,
+            "thought":thought,
+            "date":str(datetime.date.today())
+        })
 
-        conn.commit()
+    for b in st.session_state.books[::-1]:
 
-    cursor.execute("SELECT * FROM books")
-    rows = cursor.fetchall()
+        col1,col2 = st.columns([4,1])
 
-    for b in rows[::-1]:
+        with col1:
+            st.subheader(b["title"])
 
-        st.subheader(b[1])
-        st.write("과목:",b[2])
-        st.write(b[3])
+        with col2:
+            st.caption(b["date"])
+
+        st.write("과목:",b["subject"])
+        st.write(b["thought"])
+
+    if st.button("홈으로"):
+        st.session_state.page="홈"
 
 # -----------------------------
 # 공부 통계
 # -----------------------------
 
-elif menu == "공부 통계":
+elif st.session_state.page == "공부 통계":
 
     st.title("📊 공부 통계")
 
@@ -262,14 +254,12 @@ elif menu == "공부 통계":
 
     if st.button("기록"):
 
-        cursor.execute(
-        "INSERT INTO studytime(date,hours) VALUES(?,?)",
-        (str(day),hours)
-        )
+        st.session_state.study.append({
+            "date":day,
+            "hours":hours
+        })
 
-        conn.commit()
-
-    df = pd.read_sql_query("SELECT * FROM studytime",conn)
+    df = pd.DataFrame(st.session_state.study)
 
     if not df.empty:
 
@@ -282,7 +272,7 @@ elif menu == "공부 통계":
 
         st.plotly_chart(fig)
 
-        dates = sorted(pd.to_datetime(df["date"]))
+        dates = sorted(df["date"])
 
         streak = 1
 
@@ -319,3 +309,6 @@ elif menu == "공부 통계":
         st.subheader("⭐ 캐릭터 레벨")
 
         st.write(f"{character} Lv.{level}")
+
+    if st.button("홈으로"):
+        st.session_state.page="홈"
